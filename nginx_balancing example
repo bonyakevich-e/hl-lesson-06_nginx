@@ -1,0 +1,247 @@
+wrk -t4 -c100 -d10s http://127.0.0.1/index.html
+wrk -t4 -c100 -d10s --latency http://192.168.122.180/index.html 
+
+wrk -t4 -c100 -d10s http://192.168.122.39/index.html
+wrk -t4 -c100 -d10s --latency http://192.168.122.39/index.html 
+
+# Round Robin
+upstream backend {
+	server 127.0.0.1:9000;
+    server 127.0.0.1:9001;
+    server 127.0.0.1:9002;
+    server 127.0.0.1:9003;
+}
+
+server {
+	listen 80;
+	server_name example.com;
+	
+	location / {
+		proxy_pass http://backend;
+	}
+}
+
+# Least connections
+upstream backend {
+	least_conn;
+	server 127.0.0.1:9000;
+    server 127.0.0.1:9001;
+    server 127.0.0.1:9002;
+    server 127.0.0.1:9003;
+}
+
+server {
+	listen 80;
+	server_name example.com;
+	
+	location / {
+		proxy_pass http://backend;
+	}
+}
+
+# IP Hash
+upstream backend {
+	ip_hash; #two least_conn;
+	server 127.0.0.1:9000;
+    server 127.0.0.1:9001;
+    server 127.0.0.1:9002;
+    server 127.0.0.1:9003;
+}
+
+server {
+	listen 80;
+	server_name example.com;
+	
+	location / {
+		proxy_pass http://backend;
+	}
+}
+
+# Hash
+upstream backend {
+	hash $scheme$request_uri;
+	server 127.0.0.1:9000;
+    server 127.0.0.1:9001;
+    server 127.0.0.1:9002;
+    server 127.0.0.1:9003;
+}
+
+server {
+	listen 80;
+	server_name example.com;
+	
+	location / {
+		proxy_pass http://backend;
+	}
+}
+
+# Least Connections
+upstream backend {
+	least_conn;
+	server backend1.example.com;
+	server backend2.example.com;
+	server backend3.example.com;
+}
+
+server {
+	listen 80;
+	server_name example.com;
+	
+	location / {
+		proxy_pass http://backend;
+	}
+}
+
+# Random
+upstream backend {
+	random; # two least_conn;
+	server backend1.example.com;
+	server backend2.example.com;
+	server backend3.example.com;
+}
+resolve
+server {
+	listen 80;
+	server_name example.com;
+	
+	location / {
+		proxy_pass http://backend;
+	}
+}
+
+# max_fails и fail_timeout
+upstream backend {
+	server backend1.example.com max_fails=2 fail_timeout=3; 
+	server backend2.example.com; # max_fails=1 fail_timeout=10
+	server backend3.example.com; # (default)
+}
+
+# max_conns
+upstream backend {
+	server b1.example.com max_conns=1000;
+	server b2.example.com max_conns=500;
+	server b3.example.com; # max_conns=0 (default - unlimited)
+}
+
+# backup и down
+upstream backend {
+	server web1.example.com;
+	server web2.example.com backup;
+	server web3.example.com down;
+}
+
+# TCP UDP балансировка
+stream {
+	server {
+		listen 9088;
+		proxy_pass 127.0.0.1:7001;
+	}
+}
+
+http {
+}
+
+# listen директива
+listen 127.0.0.1:12345;
+listen *:12345;
+listen 12345;
+listen localhost:12345;
+listen [::1]:12345;
+listen [::]:12345;
+listen unix:/var/run/nginx.sock;
+listen 127.0.0.1:12345-12399;
+listen 12345-12399;
+
+# TCP балансировка
+stream {
+	upstream stream_backend {
+		server 127.0.0.1:7001;
+		server 127.0.0.1:7002;
+	}
+
+	server {
+		listen 9088;
+		proxy_pass stream_backend;
+	}
+}
+
+# Пример tcp-балансировки Hash
+stream {
+	upstream stream_backend {
+		hash $remote_addr consistent;
+		server 127.0.0.1:7001;
+		server 127.0.0.1:7002;
+		server 127.0.0.1:7003;
+	}
+	server {
+		listen 9088;
+		proxy_pass stream_backend;
+	}
+}
+
+# Балансировка кластера PXС
+upstream stream_sql {
+	server 10.51.21.114:3307;
+	server 10.51.21.114:3308;
+	server 10.51.21.114:3309;
+	zone tcp_mem 64k;
+}
+
+server {
+	listen 3306;
+	access_log /var/log/nginx/stream.log stream;
+	proxy_pass stream_sql;
+}
+
+# Динамические upstream
+resolver 127.0.0.1:8600 valid=2s;
+upstream name {
+	server service.consul service=docs resolve max_fails=50 fail_timeout=3;
+}
+
+# https://www.nginx.com/blog/video-streaming-for-remote-learning-with-nginx/
+# RTMP build
+sudo apt install libpcre3-dev libssl-dev zlib1g-dev
+
+cd /path/to/build/dir
+git clone https://github.com/arut/nginx-rtmp-module.git
+git clone https://github.com/nginx/nginx.git
+cd nginx
+./auto/configure --add-module=../nginx-rtmp-module
+make
+sudo make install
+
+./auto/configure --prefix=/etc/nginx --sbin-path=/usr/sbin/nginx --modules-path=/usr/lib/nginx/modules --conf-path=/etc/nginx/nginx.conf --error-log-path=/var/log/nginx/error.log --http-log-path=/var/log/nginx/access.log --pid-path=/var/run/nginx.pid --lock-path=/var/run/nginx.lock --http-client-body-temp-path=/var/cache/nginx/client_temp --http-proxy-temp-path=/var/cache/nginx/proxy_temp --http-fastcgi-temp-path=/var/cache/nginx/fastcgi_temp --http-uwsgi-temp-path=/var/cache/nginx/uwsgi_temp --http-scgi-temp-path=/var/cache/nginx/scgi_temp --user=nginx --group=nginx --with-http_ssl_module --with-http_realip_module --with-http_addition_module --with-http_sub_module --with-http_dav_module --with-http_flv_module --with-http_mp4_module --with-http_gunzip_module --with-http_gzip_static_module --with-http_random_index_module --with-http_secure_link_module --with-http_stub_status_module --with-http_auth_request_module --with-http_xslt_module=dynamic --with-http_image_filter_module=dynamic --with-http_geoip_module=dynamic --with-http_perl_module=dynamic --with-threads --with-stream --with-stream_ssl_module --with-stream_geoip_module=dynamic --with-http_slice_module --with-mail --with-mail_ssl_module --with-file-aio --with-http_v2_module --with-cc-opt='-g -O2 -fstack-protector-strong -Wformat -Werror=format-security -Wp,-D_FORTIFY_SOURCE=2 -DTCP_FASTOPEN=23' --with-ld-opt='-Wl,-Bsymbolic-functions -Wl,-z,relro -Wl,--as-needed' --with-debug --with-http_v3_module --with-cc-opt=-I../boringssl/include --with-ld-opt='-L../boringssl/build/ssl -L../boringssl/build/crypto' --add-module=/home/db/ngx_brotli --add-module=../nginx-rtmp-module
+
+# Загрузка динамического модуля
+load_module modules/ngx_rtmp_module.so;
+
+# RTMP-проксирование
+rtmp {
+	server {
+		listen 1935;
+		application live {
+			live on;
+		}
+	}
+}
+
+# Запуск потока
+ffmpeg -re -i "mi2.mp4" -c:v copy -loop 1 -c:a aac -b:a 160k -ar 44100 -strict -2 -f flv rtmp://localhost/live/bbb
+
+# На клиенте
+mplayer -nolirc rtmp://192.168.122.141/live/bbb
+
+upstream backend {
+	ip_hash; # two least_conn;
+	server 127.0.0.1:9000;
+    server 127.0.0.1:9001;
+    server 127.0.0.1:9002;
+    server 127.0.0.1:9003;
+}
+
+
+
+
+
+

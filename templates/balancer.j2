@@ -1,0 +1,23 @@
+upstream backend {
+    zone upstream-backend 10m;
+    server {{ backend01_internal_ip }}:9000;
+    server {{ backend01_internal_ip }}:9001;
+    server {{ backend01_internal_ip }}:9002 down;
+    server {{ backend01_internal_ip }}:9003;
+}
+
+server {
+    listen        80;
+    server_name   {{ nginx_external_ip }}
+
+    access_log   /var/log/nginx.access_log  main;
+
+    location / {
+        proxy_pass http://backend;
+    }
+
+    location /images/ {
+        root /data;
+    }
+}
+

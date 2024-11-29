@@ -1,0 +1,136 @@
+---
+
+- name: Configure nginx
+  hosts: nginx
+  gather_facts: no
+  become: yes
+
+  tasks:
+
+  - name: Wait for system to become reachable
+    ansible.builtin.wait_for_connection:
+
+  - name: Gather facts manually
+    ansible.builtin.setup:
+
+  - name: Set a hostname
+    ansible.builtin.hostname:
+      name: nginx
+
+  - name: Install nginx
+    ansible.builtin.apt:
+      name: nginx
+      state: present
+      update_cache: yes
+
+  - name: create static content directory
+    ansible.builtin.file:
+      path: /data/images
+      state: directory
+
+  - name: copy static content
+    ansible.builtin.copy:
+      src: "templates/{{ item }}"
+      dest: /data/images
+      owner: www-data
+      group: www-data
+      mode: 0755
+    with_items:
+      - 1.jpg
+      - 2.jpg
+      - 3.jpg
+
+  - name: copy nginx configuration
+    ansible.builtin.template:
+      src: templates/balancer.j2
+      dest: /etc/nginx/sites-enabled/balancer
+      owner: root
+      group: root
+      mode: 0755
+    notify: restart nginx
+
+  - name: delete nginx default config
+    ansible.builtin.file:
+      path: /etc/nginx/sites-enabled/default
+      state: absent
+    notify: restart nginx
+
+  handlers:
+    - name: restart nginx
+      ansible.builtin.service:
+        name: nginx
+        state: restarted 
+
+- name: Configure backend01
+  hosts: backend01
+  gather_facts: no
+  become: yes
+
+  tasks:
+
+  - name: Wait for system to become reachable
+    ansible.builtin.wait_for_connection:
+
+  - name: Gather facts manually
+    ansible.builtin.setup:
+
+  - name: Set a hostname
+    ansible.builtin.hostname:
+      name: nginx
+
+  - name: Install pip3
+    ansible.builtin.apt:
+      name: python3-pip
+      state: present
+      update_cache: yes
+
+  - name: Install nginx
+    ansible.builtin.apt:
+      name: nginx
+      state: present
+      update_cache: yes
+
+  - name: Add Docker GPG apt Key
+    ansible.builtin.apt_key:
+      url: https://download.docker.com/linux/ubuntu/gpg
+      state: present
+  
+  - name: Add Docker Repository
+    ansible.builtin.apt_repository:
+      repo: deb https://download.docker.com/linux/ubuntu noble stable
+      state: present
+
+  - name: Update apt and install docker-ce
+    ansible.builtin.apt:
+      name: docker-ce
+      state: latest
+      update_cache: true
+
+  - name: Install Docker Module for Python
+    pip:
+      name: docker
+      break_system_packages: true
+
+  - name: Add remote "ubuntu" user to "docker" group
+    remote_user: ubuntu
+    user:
+      name: "ubuntu"
+      group: "docker"
+      append: yes
+    
+  - name: install docker-compose
+    ansible.builtin.apt:
+      name: docker-compose-plugin
+      state: latest
+        
+  - name: copy Docker Compose files
+    copy:
+      src: docker-compose.yml
+      dest: /home/ubuntu/docker-compose.yml
+
+  - name: deploy backends
+    community.docker.docker_compose_v2:
+      project_src: /home/ubuntu/
+      files:
+        - docker-compose.yml
+
