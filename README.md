@@ -35,3 +35,6 @@ Terraform развернёт две виртуальные машины в yande
 
 Для проверки нужно несколько раз перейти по внешнему адресу виртуальной машины `nginx`. Цвет фона страницы и текст должен меняться, чтобы будет свидетельствовать о корректно работающей баллансировке между бэкендами. 
 Статика отдается по адресу http://nginx.external.ip/images/1.jpg, http://nginx.external.ip/images/2.jpg, http://nginx.external.ip/images/3.jpg. Статика лежит на самом балансировщике. Это сделано только для тестирования, по правильному она конечно должна быть на бэкенде. 
+
+> [!IMPORTANT]
+> Для работы Ansible в связке c Terraform должен быть установлен [Terraform Ansible Provider](https://github.com/bonyakevich-e/hl-lesson-03_terraform)
